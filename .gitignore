@@ -44,3 +44,4 @@ assertion.log
 *.log
 *.db
 ./venv/
+venv/
