@@ -1,11 +1,10 @@
 from .predict import Predict
-from typing import  List
+from typing import List
 import dspy
 import dsp
 
 
 class SelfDiscoverySignature(dspy.Signature):
-
     task_to_resolve = dspy.InputField()
     # reasoning_modules = dspy.InputField()
 
@@ -14,13 +13,14 @@ class SelfDiscoverySignature(dspy.Signature):
     # implement_reasoning_structure = dspy.OutputField(desc='IMPLEMENT the adapted reasoning modules into an actionable reasoning structure')  #internal state
     # execute_reasoning_structure = dspy.OutputField(desc='the reasoning structure to solve a specific task instance')  #internal state
 
-    anwser = dspy.OutputField(desc='Anwser')  #internal state
+    anwser = dspy.OutputField(desc='Anwser')  # internal state
+
 
 class SelfDiscovery(Predict):
 
     # STAGE 1
 
-    def select_reasoning_modules_template(self, task_to_resolve, reasoning_modules):
+    def _select_reasoning_modules_template(self, reasoning_modules):
         """
         Step 1: SELECT relevant reasoning modules for the task.
         """
@@ -29,7 +29,7 @@ class SelfDiscovery(Predict):
             desc="SELECT relevant reasoning modules for the task."
         )
 
-    def adapt_reasoning_modules_template(self, task_to_resolve, selected_modules):
+    def _adapt_reasoning_modules_template(self, selected_modules):
         """
         Step 2: ADAPT the selected reasoning modules to be more specific to the task.
         """
@@ -38,7 +38,7 @@ class SelfDiscovery(Predict):
             desc=f"ADAPT the selected reasoning modules to be more specific to the task"
         )
 
-    def implement_reasoning_structure_template(self, task_to_resolve, adapted_modules ):
+    def _implement_reasoning_structure_template(self, adapted_modules):
         """
         Step 3: IMPLEMENT the adapted reasoning modules into an actionable reasoning structure.
         """
@@ -50,7 +50,7 @@ class SelfDiscovery(Predict):
 
     # STAGE 2
 
-    def execute_reasoning_structure_template(self, task_to_resolve, reasoning_structure):
+    def _execute_reasoning_structure_template(self, task_to_resolve, reasoning_structure):
         """
         Execute the reasoning structure to solve a specific task instance.
         """
@@ -61,69 +61,82 @@ class SelfDiscovery(Predict):
             desc=f"Execute the reasoning structure to solve a specific task instance"
         )
 
-
-
-    def __init__(self, signature:SelfDiscoverySignature, **config):
+    def __init__(self, signature: SelfDiscoverySignature, **config):
         super().__init__(signature, **config)
-
         self.signature = signature
-
 
     def forward(self, **kwargs):
         task_to_resolve = kwargs.get("task_to_resolve")
-        reasoning_modules = kwargs.get("reasoning_modules")
+        reasoning_modules: List[str] = kwargs.get("reasoning_modules")
+
+        selection_modules = self.selectStep(reasoning_modules, task_to_resolve)
+
+        adapt_result = self.adaptStep(selection_modules, task_to_resolve)
+
+        implement_result = self.implementStep(adapt_result, task_to_resolve)
+
+        solution = self.solveStep(implement_result, task_to_resolve)
+
+        return solution
+
+    def selectStep(self, reasoning_modules: List[str], task_to_resolve: str):
+        kwargs = {"task_to_resolve": task_to_resolve, "reasoning_modules": "\n".join(reasoning_modules)}
         signature = self.signature
-        *keys, last_key = signature.kwargs.keys()
-
+        *keys, output_key = signature.kwargs.keys()
         extended_kwargs = {key: signature.kwargs[key] for key in keys}
         extended_kwargs.update(
-            {"select_reasoning_modules": self.select_reasoning_modules_template(task_to_resolve, reasoning_modules), last_key: signature.kwargs[last_key]}
+            {"select_reasoning_modules": self._select_reasoning_modules_template(reasoning_modules),
+             output_key: signature.kwargs[output_key]}
         )
-
-        #SELECT
-        self.selection_signature = dsp.Template(
+        # SELECT
+        selection_signature = dsp.Template(
             signature.instructions, **extended_kwargs
         )
-        selection_modules = super().forward(signature=self.selection_signature, **kwargs).anwser
-        print("selection_modules ==>", selection_modules)
+        selection_modules = super().forward(signature=selection_signature, **kwargs).anwser
+        return selection_modules
 
-        #ADAPT
+    def adaptStep(self, selection_modules: str, task_to_resolve: str):
+        kwargs = {"task_to_resolve": task_to_resolve, "selection_modules": selection_modules}
+        signature = self.signature
+        *keys, output_key = signature.kwargs.keys()
         extended_kwargs = {key: signature.kwargs[key] for key in keys}
         extended_kwargs.update(
-            {"adapt_reasoning_modules": self.adapt_reasoning_modules_template(task_to_resolve, selection_modules), last_key: signature.kwargs[last_key]}
+            {"adapt_reasoning_modules": self._adapt_reasoning_modules_template(selection_modules),
+             output_key: signature.kwargs[output_key]}
         )
-        self.adapt_signature = dsp.Template(
+        adapt_signature = dsp.Template(
             signature.instructions, **extended_kwargs
         )
+        adapt_result = super().forward(signature=adapt_signature, **kwargs).anwser
+        return adapt_result
 
-        adapt_result = super().forward(signature=self.adapt_signature, **kwargs).anwser
-        print("Adapt ==>", adapt_result)
-
-        # IMPLEMENT
+    def implementStep(self, adapt_result: str, task_to_resolve: str):
+        kwargs = {"task_to_resolve": task_to_resolve, "adapt_result": adapt_result}
+        signature = self.signature
+        *keys, output_key = signature.kwargs.keys()
         extended_kwargs = {key: signature.kwargs[key] for key in keys}
         extended_kwargs.update(
-            {"implement_reasoning_structure": self.implement_reasoning_structure_template(task_to_resolve, adapt_result), last_key: signature.kwargs[last_key]}
+            {"implement_reasoning_structure": self._implement_reasoning_structure_template(adapt_result),
+             output_key: signature.kwargs[output_key]}
         )
-        self.implement_signature = dsp.Template(
+        implement_signature = dsp.Template(
             signature.instructions, **extended_kwargs
         )
+        implement_result = super().forward(signature=implement_signature, **kwargs).anwser
+        return implement_result
 
-        implement_result = super().forward(signature=self.implement_signature, **kwargs).anwser
-        print("implement_result ==>", implement_result)
-
-
-        #SOLVE
+    def solveStep(self, implement_result: str, task_to_resolve: str):
+        kwargs = {"task_to_resolve": task_to_resolve, "implement_result": implement_result}
+        signature = self.signature
+        *keys, output_key = signature.kwargs.keys()
         extended_kwargs = {key: signature.kwargs[key] for key in keys}
         extended_kwargs.update(
-            {"execute_reasoning_structure": self.execute_reasoning_structure_template(task_to_resolve, implement_result),
-             last_key: signature.kwargs[last_key]}
+            {"execute_reasoning_structure": self._execute_reasoning_structure_template(task_to_resolve,implement_result),
+             output_key: signature.kwargs[output_key]}
         )
-        self.execute_template = dsp.Template(
+        execute_template = dsp.Template(
             signature.instructions, **extended_kwargs
         )
+        solution = super().forward(signature=execute_template, **kwargs)
 
-        final_solution = super().forward(signature=self.execute_template, **kwargs)
-        execute_result = final_solution.anwser
-        print("execute_template ==>", execute_result)
-
-        return final_solution
+        return solution

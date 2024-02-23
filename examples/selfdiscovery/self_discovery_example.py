@@ -1,7 +1,7 @@
 
 
-import  dspy
-from dspy.predict.self_discover import SelfDiscovery, SelfDiscoverySignature
+import dspy
+from dspy.predict.self_discovery import SelfDiscovery, SelfDiscoverySignature
 from dspy.teleprompt import BootstrapFewShot
 import json
 
@@ -17,10 +17,10 @@ class SelfDiscoverModule(dspy.Module):
         self.selfDiscovery = SelfDiscovery(SelfDiscoverySignature)
 
     def forward(self, task_to_resolve, reasoning_modules):
-        return  self.selfDiscovery(task_to_resolve=task_to_resolve, reasoning_modules=json.dumps(reasoning_modules))
+        return  self.selfDiscovery(task_to_resolve=task_to_resolve, reasoning_modules=reasoning_modules)
 
 
-reasoning_modules = reasoning_modules = [
+reasoning_modules = [
         "1. How could I devise an experiment to help solve that problem?",
         "2. Make a list of ideas for solving this problem, and apply them one by one to the problem to see if any progress can be made.",
         #"3. How could I measure progress on this problem?",
