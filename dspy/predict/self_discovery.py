@@ -1,7 +1,7 @@
+import dsp
 from .predict import Predict
 from typing import List
 import dspy
-import dsp
 
 
 class SelfDiscoverySignature(dspy.Signature):

@@ -17,7 +17,7 @@ class SelfDiscoverModule(dspy.Module):
         self.selfDiscovery = SelfDiscovery(SelfDiscoverySignature)
 
     def forward(self, task_to_resolve, reasoning_modules):
-        return  self.selfDiscovery(task_to_resolve=task_to_resolve, reasoning_modules=reasoning_modules)
+        return self.selfDiscovery(task_to_resolve=task_to_resolve, reasoning_modules=reasoning_modules)
 
 
 reasoning_modules = [
